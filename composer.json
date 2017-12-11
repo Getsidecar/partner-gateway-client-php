@@ -1,0 +1,11 @@
+{
+    "name": "slofurno/partner-gateway-client-php",
+    "type": "library",
+    "require": { },
+    "autoload": {
+      "psr-4": {"PartnerGateway\\": "src/"}
+    },
+    "require-dev": {
+        "guzzlehttp/guzzle": "^6.3"
+    }
+}
