@@ -1,5 +1,5 @@
 {
-    "name": "slofurno/partner-gateway-client-php",
+    "name": "sidecar/partner-gateway-client-php",
     "type": "library",
     "require": { },
     "autoload": {
