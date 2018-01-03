@@ -35,21 +35,18 @@ class Client {
     $uri = sprintf("%s/v1/%s/accounts/%s/adgroups/%d/partitions", $this->endpoint_, $partner, $accountId, $adGroupId);
     $req = newRequest("GET", $uri);
     return $this->doRequest($req);
+  }
 
+  public function getCampaignCriteria($partner, $accountId, $campaign) {
+    $uri = sprintf("%s/v1/%s/accounts/%s/campaigns/%d/criteria", $this->endpoint_, $partner, $accountId, $campaign);
+    $req = newRequest("GET", $uri);
+    return $this->doRequest($req);
   }
 
   private function doRequest($req) {
-    //$res = $this->client_->request("GET", $uri);
     $res = $this->client_->send($req, ['http_errors' => false]);
 
-    /*
-    if ($res->getStatusCode() != 200) {
-      throw new Exception();
-    }
-     */
-
     $pr = json_decode((string)$res->getBody(), true);
-
     if ($pr["status"] != 200) {
       throw new \Exception($pr["errors"][0]);
     }
