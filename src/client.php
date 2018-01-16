@@ -9,25 +9,25 @@ function newRequest($method, $uri, $options = [])
     return new Request($method, $uri, $options);
 }
 
-class Client
-{
-    /**
-     * @var $endpoint_
-     */
-    protected $endpoint_;
+class ClientException extends \Exception {
+  public function __toString() {
+    return __CLASS__ . ": " . $this->message;
+  }
+}
 
-    /**
-     * @var $client_
-     */
-    protected $client_;
+class Client {
+  protected $endpoint_;
+
+  protected $client_;
+
+  protected $maxRetries_ = 4;
 
     /**
      * Client constructor.
      * @param $client
      * @param $endpoint
      */
-    public function __construct($client, $endpoint)
-    {
+    public function __construct($client, $endpoint) {
         $this->client_ = $client;
         $this->endpoint_ = $endpoint;
     }
@@ -37,11 +37,9 @@ class Client
      * @param $accountId
      * @return mixed
      */
-    public function getCampaigns($partner, $accountId)
-    {
+    public function getCampaigns($partner, $accountId) {
         $uri = sprintf("%s/v1/%s/accounts/%s/campaigns", $this->endpoint_, $partner, $accountId);
         $req = newRequest("GET", $uri);
-
         return $this->doRequest($req);
     }
 
@@ -51,17 +49,9 @@ class Client
      * @param $campaignId
      * @return mixed
      */
-    public function getCampaignAdGroups($partner, $accountId, $campaignId)
-    {
-        $uri = sprintf(
-            "%s/v1/%s/accounts/%s/campaigns/%d/adgroups",
-            $this->endpoint_,
-            $partner,
-            $accountId,
-            $campaignId
-        );
+    public function getCampaignAdGroups($partner, $accountId, $campaignId) {
+        $uri = sprintf("%s/v1/%s/accounts/%s/campaigns/%d/adgroups", $this->endpoint_, $partner, $accountId, $campaignId);
         $req = newRequest("GET", $uri);
-
         return $this->doRequest($req);
     }
 
@@ -71,17 +61,9 @@ class Client
      * @param $adGroupId
      * @return mixed
      */
-    public function getAdGroupPartitions($partner, $accountId, $adGroupId)
-    {
-        $uri = sprintf(
-            "%s/v1/%s/accounts/%s/adgroups/%d/partitions",
-            $this->endpoint_,
-            $partner,
-            $accountId,
-            $adGroupId
-        );
+    public function getAdGroupPartitions($partner, $accountId, $adGroupId) {
+        $uri = sprintf("%s/v1/%s/accounts/%s/adgroups/%d/partitions", $this->endpoint_, $partner, $accountId, $adGroupId);
         $req = newRequest("GET", $uri);
-
         return $this->doRequest($req);
     }
 
@@ -91,12 +73,28 @@ class Client
      * @param $campaign
      * @return mixed
      */
-    public function getCampaignCriteria($partner, $accountId, $campaign)
-    {
+    public function getCampaignCriteria($partner, $accountId, $campaign) {
         $uri = sprintf("%s/v1/%s/accounts/%s/campaigns/%d/criteria", $this->endpoint_, $partner, $accountId, $campaign);
         $req = newRequest("GET", $uri);
-
         return $this->doRequest($req);
+    }
+
+    private function isRetryableError($code) {
+        switch($code) {
+        case "CONCURRENT_MODIFICATION":
+        case "UNEXPECTED_INTERNAL_API_ERROR":
+        case "RATE_EXCEEDED":
+        case "OAUTH_TOKEN_EXPIRED":
+        case "OAUTH_TOKEN_INVALID":
+        case "AuthenticationTokenExpired":
+        case "InvalidCredentials":
+        case "InternalError":
+        case "CallRateExceeded":
+        case "NetErrorTemporary":
+          return true;
+        default:
+          return false;
+        }
     }
 
     /**
@@ -104,15 +102,26 @@ class Client
      * @return mixed
      * @throws \Exception
      */
-    private function doRequest($req)
-    {
-        $res = $this->client_->send($req, ['http_errors' => false]);
+    private function doRequest($req) {
+        $i = 1;
+        for(;;) {
+          $res = $this->client_->send($req, ['http_errors' => false]);
 
-        $pr = json_decode((string)$res->getBody(), true);
-        if ($pr["status"] != 200) {
-            throw new \Exception($pr["errors"][0]);
+          $pr = json_decode((string)$res->getBody(), true);
+          if ($pr["status"] == 200) {
+            return $pr["data"];
+          }
+
+          if (!$this->isRetryableError($pr["code"])) {
+            throw new ClientException("unretrable error code: " . $pr["errors"][0]);
+          }
+
+          if ($i >= $this->maxRetries_) {
+            throw new ClientException("giving up after " . $i . "attempts, with error code: " . $pr["code"]);
+          }
+
+          sleep(2 + pow(2, $i));
+          $i++;
         }
-
-        return $pr["data"];
     }
 }
